@@ -23,6 +23,8 @@ import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.example.arcseekbar.weight.productinterface.DogProduct;
+import com.example.arcseekbar.weight.productinterface.DogProductFactory;
 import com.example.arcseekbar.weight.productinterface.GridView;
 import com.example.arcseekbar.weight.productinterface.IncreaseListeren;
 import com.example.arcseekbar.weight.productinterface.ProductItemView;
@@ -41,7 +43,7 @@ import java.util.Map;
  * @author way
  */
 public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
-        View.OnClickListener, View.OnLongClickListener , IncreaseListeren {
+        View.OnClickListener, View.OnLongClickListener, IncreaseListeren {
     // layout vars
     public static float childRatio = .9f;
     private int colCount = 4, row = 3;
@@ -61,8 +63,7 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
     private Context mContext;
     private int gridSize = 12;//网格数量
     private List<GridView> gridList = new ArrayList<>();//网格view
-    private Map<Integer,View> productMap = new HashMap<>();//产品view
-
+    private Map<Integer, View> productMap = new HashMap<>();//产品view
 
 
     @Override
@@ -118,25 +119,25 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
         child.setLayoutParams(params);
         addView(child);
 
-        if(child instanceof ProductView){
+        if (child instanceof ProductView) {
             ((ProductView) child).setIncreaseListeren(this);
         }
 
-        for (Map.Entry<Integer,View> entry : productMap.entrySet()) {
+        for (Map.Entry<Integer, View> entry : productMap.entrySet()) {
             Integer key = entry.getKey();
             View value = entry.getValue();
-            if(value == null){
-                productMap.put(key,child);
+            if (value == null) {
+                productMap.put(key, child);
                 break;
             }
         }
 //        newPositions.add(-1);
     }
 
-    private boolean isFull(){
-        for (Map.Entry<Integer,View> entry : productMap.entrySet()) {
+    private boolean isFull() {
+        for (Map.Entry<Integer, View> entry : productMap.entrySet()) {
             View value = entry.getValue();
-            if(value == null)
+            if (value == null)
                 return false;
         }
         return true;
@@ -152,11 +153,9 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
     public void removeViewAt(int index) {
         super.removeViewAt(index);
 //        newPositions.remove(index);
-        productMap.put(index,null);
+        productMap.put(index, null);
         requestLayout();
     }
-
-
 
 
     @Override
@@ -193,10 +192,10 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
 //            productList.get(i).layout(xy.x, xy.y, xy.x + childSize,
 //                    xy.y + childSize);
 //        }
-        for (Map.Entry<Integer,View> entry : productMap.entrySet()){
+        for (Map.Entry<Integer, View> entry : productMap.entrySet()) {
             Integer key = entry.getKey();
             View value = entry.getValue();
-            if(value != null){
+            if (value != null) {
                 Point xy = getCoorFromIndex(key);
                 value.layout(xy.x, xy.y, xy.x + childSize,
                         xy.y + childSize);
@@ -213,7 +212,7 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
             this.addView(gridView);
 
             //
-            productMap.put(i,null);
+            productMap.put(i, null);
         }
     }
 
@@ -302,10 +301,17 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
         if (enabled) {
             if (secondaryOnClickListener != null)
                 secondaryOnClickListener.onClick(view);
-            if (onItemClickListener != null && getLastIndex() != -1)
+
+            int lastIndex = getLastIndex();
+            if (onItemClickListener != null && lastIndex != -1) {
+                productMap.put(lastIndex ,null);
+
+                requestAddView();
+
                 onItemClickListener.onItemClick(null,
                         getChildAt(getLastIndex()), getLastIndex(),
                         getLastIndex() / colCount);
+            }
         }
     }
 
@@ -315,7 +321,7 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
         int index = getLastIndex();
         if (index != -1) {
             boolean empty = isEmpty(index);
-            if(!empty) {//位置上有产品，可拖动
+            if (!empty) {//位置上有产品，可拖动
                 dragged = index;
 
             }
@@ -326,7 +332,7 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
     }
 
     //该位置上是否有产品
-    private boolean isEmpty(int index){
+    private boolean isEmpty(int index) {
         return productMap.get(index) == null;
     }
 
@@ -346,8 +352,8 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
                     int x = (int) event.getX(), y = (int) event.getY();
                     int l = x - (3 * childSize / 4), t = y - (3 * childSize / 4);
 
-                    productMap.get(dragged).layout(l, t, l + childSize ,
-                            t + childSize );
+                    productMap.get(dragged).layout(l, t, l + childSize,
+                            t + childSize);
 
 
                 }
@@ -360,9 +366,9 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
                     int x = (int) event.getX(), y = (int) event.getY();
                     lastTarget = getIndexFromCoor(x, y);
                     View v = productMap.get(dragged);
-                    if(lastTarget != -1 && dragged != lastTarget){//，移动后的位置不一样，位置互换
+                    if (lastTarget != -1 && dragged != lastTarget) {//，在格子内，移动后的位置不一样，位置互换
                         replease();
-                    }else{
+                    } else {
                         Point xy = getCoorFromIndex(dragged);
                         v.layout(xy.x, xy.y, xy.x + childSize, xy.y + childSize);
                     }
@@ -378,26 +384,56 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
         return false;
     }
 
-    //互换位置
+    //互换位置,如果等级相同，则升一级
     private void replease() {
-        View view1 = productMap.get(dragged);
-        View view2 = productMap.get(lastTarget);
-        productMap.put(dragged,view2);
-        productMap.put(lastTarget,view1);
+        ProductView view1 = (ProductView) productMap.get(dragged);
+        ProductView view2 = (ProductView) productMap.get(lastTarget);
 
+        if (view2 != null) {
+            int level1 = view1.getLevel();
+            int level2 = view2.getLevel();
+            if (level1 == level2) {//相同等级
+                productMap.put(dragged, null);
+                productMap.put(lastTarget, createProduct(level1 + 1));
+            } else {
+                productMap.put(dragged, view2);
+                productMap.put(lastTarget, view1);
+            }
+        }else{
+            productMap.put(dragged, view2);
+            productMap.put(lastTarget, view1);
+        }
+
+        requestAddView();
+//        onLayout(true, getLeft(), getTop(), getRight(), getBottom());
+    }
+
+    private void requestAddView(){
         removeAllViews();
-
-        for (View child:gridList ){
+        for (View child : gridList) {
             addView(child);
         }
-        for (Map.Entry<Integer,View> entry : productMap.entrySet()) {
+        for (Map.Entry<Integer, View> entry : productMap.entrySet()) {
             View value = entry.getValue();
-            if(value != null){
+            if (value != null) {
                 addView(value);
+//                if(value instanceof ProductView) {
+//                    ((ProductView) value).stopTimer();
+//                    ((ProductView) value).startTimer();
+//                }
+
             }
         }
         requestLayout();
-//        onLayout(true, getLeft(), getTop(), getRight(), getBottom());
+    }
+
+
+    private View createProduct(int level) {
+        ProductView productView = new ProductView(mContext);
+        DogProductFactory factory = new DogProductFactory();
+        DogProduct product = factory.create(level);
+        productView.setProduct(product);
+        return productView;
     }
 
     // EVENT HELPERS
