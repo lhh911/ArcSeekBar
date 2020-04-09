@@ -16,10 +16,5 @@ public class DragLayoutActivity extends AppCompatActivity {
         setContentView(R.layout.activity_drag_layout);
 
 
-        ProductItemView2 productItemView2 = findViewById(R.id.productview2);
-        DogProductFactory factory2 = new DogProductFactory();
-        DogProduct product2 = factory2.create(1);
-        productItemView2.setProduct(product2);
-        productItemView2.startAnim();
     }
 }

@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.os.Handler;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -59,7 +60,7 @@ public class ProductItemView extends LinearLayout {
     private void init(){
 
         setOrientation(LinearLayout.VERTICAL);
-        setBackgroundColor(Color.parseColor("#ff0000"));
+//        setBackgroundColor(Color.parseColor("#50ff0000"));
 
         //添加秒产量
         addCountTv = new TextView(mContext);
@@ -71,14 +72,15 @@ public class ProductItemView extends LinearLayout {
 
         //产品图片
         productIv = new ImageView(mContext);
-        LinearLayout.LayoutParams params2 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams params2 = new LinearLayout.LayoutParams(200, 200);
         params2.weight = 1;
         params2.gravity = Gravity.CENTER;
         addView(productIv,params2);
 
         //添加产品等级
         levelTv = new TextView(mContext);
-        levelTv.setTextSize(12);
+        levelTv.setTextSize(14);
+        levelTv.setTextColor(Color.BLACK);
         levelTv.setBackgroundResource(R.drawable.level_bg);
         LinearLayout.LayoutParams params3 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         params3.gravity = Gravity.RIGHT;
@@ -86,14 +88,17 @@ public class ProductItemView extends LinearLayout {
     }
 
 
-
-
     @Override
-    protected void onFinishInflate() {
-        super.onFinishInflate();
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        Log.d("visibility","onWindowVisibilityChanged = " + visibility);
 
-        startAnim();
+        if(visibility == 0){
+            startAnim();
+        }
     }
+
+
 
 
     public void setProduct(Product product){
@@ -112,6 +117,7 @@ public class ProductItemView extends LinearLayout {
             mRunning = new AnimRunning();
 
         initAnim();
+        mHander.removeCallbacks(mRunning);
         mHander.postDelayed(mRunning,4000);
     }
 
@@ -187,7 +193,6 @@ public class ProductItemView extends LinearLayout {
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        if(mHander != null)
-            mHander.removeCallbacks(mRunning);
+        clearAnim();
     }
 }

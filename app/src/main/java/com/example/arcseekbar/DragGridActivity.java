@@ -19,6 +19,7 @@ import com.example.arcseekbar.weight.DragGridView2;
 import com.example.arcseekbar.weight.productinterface.DogProduct;
 import com.example.arcseekbar.weight.productinterface.DogProductFactory;
 import com.example.arcseekbar.weight.productinterface.ProductItemView;
+import com.example.arcseekbar.weight.productinterface.ProductItemView2;
 import com.example.arcseekbar.weight.productinterface.ProductView;
 
 import java.util.ArrayList;
@@ -45,15 +46,7 @@ public class DragGridActivity extends AppCompatActivity {
     }
 
     private void setListeners() {
-        mDragGridView.setOnRearrangeListener(new DragGridView2.OnRearrangeListener() {
-            public void onRearrange(int oldIndex, int newIndex) {
-//                String word = poem.remove(oldIndex);
-//                if (oldIndex < newIndex)
-//                    poem.add(newIndex, word);
-//                else
-//                    poem.add(newIndex, word);
-            }
-        });
+
         mDragGridView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> arg0, View arg1, int arg2,
@@ -68,7 +61,7 @@ public class DragGridActivity extends AppCompatActivity {
 //                ImageView view = new ImageView(DragGridActivity.this);
 //                view.setImageBitmap(getThumb(word));
 //                mDragGridView.addProductView(view);
-                mDragGridView.addProductView(createProduct(random.nextInt(4)));
+                mDragGridView.addProductView(createProduct(random.nextInt(9)+1));
 //                poem.add(word);
             }
         });
@@ -100,9 +93,9 @@ public class DragGridActivity extends AppCompatActivity {
         return bmp;
     }
 
-    public ProductView createProduct(int type){
-//        ProductItemView productItemView = new ProductItemView(this);
-        ProductView productView = new ProductView(this);
+    public View createProduct(int type){
+        ProductItemView2 productView = new ProductItemView2(this);
+//        ProductView productView = new ProductView(this);
         DogProductFactory factory = new DogProductFactory();
         DogProduct product = factory.create(type);
         productView.setProduct(product);

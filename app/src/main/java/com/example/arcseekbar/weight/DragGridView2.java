@@ -4,14 +4,10 @@ package com.example.arcseekbar.weight;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Point;
-import android.os.Handler;
-import android.os.SystemClock;
-import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
-import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AlphaAnimation;
@@ -20,20 +16,17 @@ import android.view.animation.AnimationSet;
 import android.view.animation.ScaleAnimation;
 import android.view.animation.TranslateAnimation;
 import android.widget.AdapterView;
-import android.widget.ImageView;
 import android.widget.Toast;
 
 import com.example.arcseekbar.weight.productinterface.DogProduct;
 import com.example.arcseekbar.weight.productinterface.DogProductFactory;
 import com.example.arcseekbar.weight.productinterface.GridView;
 import com.example.arcseekbar.weight.productinterface.IncreaseListeren;
-import com.example.arcseekbar.weight.productinterface.ProductItemView;
-import com.example.arcseekbar.weight.productinterface.ProductView;
+import com.example.arcseekbar.weight.productinterface.ProductItemView2;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -56,7 +49,7 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
     public static int animT = 150;
     protected ArrayList<Integer> newPositions = new ArrayList<Integer>();
     // listeners
-    protected OnRearrangeListener onRearrangeListener;
+
     protected OnClickListener secondaryOnClickListener;
     private AdapterView.OnItemClickListener onItemClickListener;
 
@@ -65,6 +58,9 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
     private List<GridView> gridList = new ArrayList<>();//网格view
     private Map<Integer, View> productMap = new HashMap<>();//产品view
 
+    ItemAnimTaskRunnable itemTask;//轮询检查线程，符合时间的productitem执行动画
+    boolean taskEnable = true;
+    private Thread taskThread;
 
     @Override
     public void increase(int increase) {
@@ -72,14 +68,6 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
         Log.d("info", "每秒收益 = " + increase);
     }
 
-
-    /**
-     * 拖动item的接口
-     */
-    public interface OnRearrangeListener {
-
-        public abstract void onRearrange(int oldIndex, int newIndex);
-    }
 
     // CONSTRUCTOR AND HELPERS
     public DragGridView2(Context context, AttributeSet attrs) {
@@ -115,12 +103,8 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
             return;
         }
 
-        LayoutParams params = new LayoutParams(childSize, childSize);
-        child.setLayoutParams(params);
-        addView(child);
-
-        if (child instanceof ProductView) {
-            ((ProductView) child).setIncreaseListeren(this);
+        if (child instanceof ProductItemView2) {
+            ((ProductItemView2) child).setIncreaseListeren(this);
         }
 
         for (Map.Entry<Integer, View> entry : productMap.entrySet()) {
@@ -131,7 +115,10 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
                 break;
             }
         }
-//        newPositions.add(-1);
+
+        LayoutParams params = new LayoutParams(childSize, childSize);
+        child.setLayoutParams(params);
+        addView(child);
     }
 
     private boolean isFull() {
@@ -143,23 +130,14 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
         return true;
     }
 
-    @Override
-    public void addView(View child) {
-        super.addView(child);
-    }
-
-
-    @Override
-    public void removeViewAt(int index) {
-        super.removeViewAt(index);
-//        newPositions.remove(index);
-        productMap.put(index, null);
-        requestLayout();
-    }
-
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+
+        final int count = getChildCount();
+        for (int i = 0; i < count; i++) {
+            measureChild(getChildAt(i),widthMeasureSpec,heightMeasureSpec);
+        }
 
         setMeasuredDimension(getDefaultSize(MeasureSpec.getSize(widthMeasureSpec), widthMeasureSpec),
                 getDefaultSize(MeasureSpec.getSize(heightMeasureSpec), heightMeasureSpec));
@@ -186,12 +164,7 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
 
         }
 
-        //布局产品，有可能没有
-//        for (int i = 0; i < productList.size(); i++) {
-//            Point xy = getCoorFromIndex(i);
-//            productList.get(i).layout(xy.x, xy.y, xy.x + childSize,
-//                    xy.y + childSize);
-//        }
+        //布局产品，有可能没有,和网格位置对应
         for (Map.Entry<Integer, View> entry : productMap.entrySet()) {
             Integer key = entry.getKey();
             View value = entry.getValue();
@@ -222,6 +195,8 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
         super.onFinishInflate();
 
         initGrid();
+
+        startTask();
     }
 
     @Override
@@ -304,9 +279,11 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
 
             int lastIndex = getLastIndex();
             if (onItemClickListener != null && lastIndex != -1) {
+                View product = productMap.get(lastIndex);
                 productMap.put(lastIndex ,null);
+                removeView(product);
 
-                requestAddView();
+//                requestAddView();
 
                 onItemClickListener.onItemClick(null,
                         getChildAt(getLastIndex()), getLastIndex(),
@@ -343,6 +320,14 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
                 enabled = true;
                 lastX = (int) event.getX();
                 lastY = (int) event.getY();
+                int index = getLastIndex();
+                if (index != -1) {
+                    boolean empty = isEmpty(index);
+                    if (!empty) {//位置上有产品，可拖动
+                        dragged = index;
+                    }
+                }
+
                 touching = true;
                 break;
             case MotionEvent.ACTION_MOVE:
@@ -386,26 +371,39 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
 
     //互换位置,如果等级相同，则升一级
     private void replease() {
-        ProductView view1 = (ProductView) productMap.get(dragged);
-        ProductView view2 = (ProductView) productMap.get(lastTarget);
+//        ProductView view1 = (ProductView) productMap.get(dragged);
+//        ProductView view2 = (ProductView) productMap.get(lastTarget);
+
+        ProductItemView2 view1 = (ProductItemView2) productMap.get(dragged);
+        ProductItemView2 view2 = (ProductItemView2) productMap.get(lastTarget);
 
         if (view2 != null) {
-            int level1 = view1.getLevel();
+            final int level1 = view1.getLevel();
             int level2 = view2.getLevel();
             if (level1 == level2) {//相同等级
                 productMap.put(dragged, null);
-                productMap.put(lastTarget, createProduct(level1 + 1));
+                productMap.put(lastTarget, null);
+
+                removeView(view1);
+                removeView(view2);
+                View product = createProduct(level1 + 1);
+                productMap.put(lastTarget, product);
+                LayoutParams params = new LayoutParams(childSize, childSize);
+                product.setLayoutParams(params);
+                addView(product);
+//                addProductView(product);
+
             } else {
                 productMap.put(dragged, view2);
                 productMap.put(lastTarget, view1);
+                requestLayout();
             }
         }else{
             productMap.put(dragged, view2);
             productMap.put(lastTarget, view1);
+            requestLayout();
         }
 
-        requestAddView();
-//        onLayout(true, getLeft(), getTop(), getRight(), getBottom());
     }
 
     private void requestAddView(){
@@ -417,10 +415,6 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
             View value = entry.getValue();
             if (value != null) {
                 addView(value);
-//                if(value instanceof ProductView) {
-//                    ((ProductView) value).stopTimer();
-//                    ((ProductView) value).startTimer();
-//                }
 
             }
         }
@@ -428,13 +422,6 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
     }
 
 
-    private View createProduct(int level) {
-        ProductView productView = new ProductView(mContext);
-        DogProductFactory factory = new DogProductFactory();
-        DogProduct product = factory.create(level);
-        productView.setProduct(product);
-        return productView;
-    }
 
     // EVENT HELPERS
     protected void animateDragged() {
@@ -501,8 +488,8 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
     protected void reorderChildren() {
         // FIGURE OUT HOW TO REORDER CHILDREN WITHOUT REMOVING THEM ALL AND
         // RECONSTRUCTING THE LIST!!!
-        if (onRearrangeListener != null)
-            onRearrangeListener.onRearrange(dragged, lastTarget);
+//        if (onRearrangeListener != null)
+//            onRearrangeListener.onRearrange(dragged, lastTarget);
         ArrayList<View> children = new ArrayList<View>();
         for (int i = 0; i < getChildCount(); i++) {
             getChildAt(i).clearAnimation();
@@ -575,12 +562,77 @@ public class DragGridView2 extends ViewGroup implements View.OnTouchListener,
         return getIndexFromCoor(lastX, lastY);
     }
 
-    // OTHER METHODS
-    public void setOnRearrangeListener(OnRearrangeListener l) {
-        this.onRearrangeListener = l;
-    }
+
 
     public void setOnItemClickListener(AdapterView.OnItemClickListener l) {
         this.onItemClickListener = l;
+    }
+
+
+    public View createProduct(int level) {
+//        ProductView productView = new ProductView(mContext);
+        ProductItemView2 productView = new ProductItemView2(mContext);
+        DogProductFactory factory = new DogProductFactory();
+        DogProduct product = factory.create(level);
+        productView.setProduct(product);
+        return productView;
+    }
+
+
+//    @Override
+//    protected void onWindowVisibilityChanged(int visibility) {
+//        super.onWindowVisibilityChanged(visibility);
+//        if(visibility == 0){
+//            taskEnable = true;
+//            startTask();
+//        }else {
+//            taskEnable = false;
+//        }
+//
+//        Log.d("info","visibility = "+ visibility );
+//    }
+
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        taskEnable = false;
+
+    }
+
+    public void startTask(){
+
+        if(itemTask == null){
+            itemTask = new ItemAnimTaskRunnable();
+        }
+
+        new Thread(itemTask).start();
+    }
+
+    public class ItemAnimTaskRunnable implements Runnable {
+        @Override
+        public void run() {
+            while (taskEnable){
+                long curTime = System.currentTimeMillis();
+                for (Map.Entry<Integer, View> entry : productMap.entrySet()) {
+                    View value = entry.getValue();
+                    if (value != null && value instanceof ProductItemView2) {
+                        ProductItemView2 productItemView2 = (ProductItemView2) value;
+                        long curUpdateTime = productItemView2.getCurUpdateTime();
+                        if(curTime - curUpdateTime >= 5000){
+                            productItemView2.startAnim();
+                        }
+                    }
+                }
+
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                Log.d("info","ItemAnimTaskRunnable is running == threadName = " +Thread.currentThread() );
+            }
+        }
     }
 }
